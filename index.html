@@ -110,6 +110,8 @@ window.ONBOARDING_DATA = {
     {id:'welcome',title:'Добро пожаловать в Атвинту',description:'Welcome-презентация: отправная точка знакомства с компанией.',category:'О компании',format:'Презентация',role:'Все отделы',url:'https://docs.google.com/presentation/d/1uuMYGbdJe7FHwSUB0Vg1rH4lKf3g2q3FeRZYnlWCG30/edit?usp=sharing',icon:'play',color:'lime'},
     {id:'company',title:'База знаний Атвинты',description:'Отделы, общие материалы и полезные ссылки в одном пространстве.',category:'О компании',format:'Confluence',role:'Все отделы',url:'https://info.atwinta.ru/pages/viewpage.action?pageId=2588726',icon:'book',color:'lilac'},
     {id:'hr',title:'Всё для адаптации',description:'HR-раздел с материалами для первых шагов и картами новичка.',category:'Адаптация',format:'Confluence',role:'Все отделы',url:'https://info.atwinta.ru/display/HR/HR',icon:'spark',color:'peach'},
+    {id:'employees',title:'Список сотрудников',description:'Ссылка на список сотрудников компании с главной страницы HR-раздела. Для просмотра нужен вход в Чавошу.',category:'О компании',format:'Confluence',role:'Все отделы',url:'https://info.atwinta.ru/pages/viewpage.action?pageId=2588858',icon:'people',color:'lilac',keywords:['сотрудники','сотрудников','списка сотрудников','коллеги','коллег','персонал','справочник сотрудников','кто работает в компании']},
+    {id:'photos',title:'Все фотографии Атвинты',description:'Ссылка «Все фотографии Атвинты» с главной страницы HR-раздела на Яндекс Диск. Доступ определяется настройками источника.',category:'О компании',format:'Яндекс Диск',role:'Все отделы',url:'https://disk.yandex.ru/d/_OHMgdjaFTKkBw',icon:'grid',color:'peach',keywords:['фото','фотки','фотографии','фотографий','фотография','снимки','снимков','альбом','фотоальбом','галерея','фото команды','фото сотрудников','фотографии коллег']},
     {id:'remote',title:'Адаптация на удалёнке',description:'Материал для знакомства с работой в удалённом формате.',category:'Адаптация',format:'Документ',role:'Все отделы',url:'https://docs.google.com/document/d/1p1-5QJT32nEPKt4dJ7OCgNUjCYRUt0T1kDdCNRneHWE/edit',icon:'laptop',color:'blue'},
     {id:'map-pm',title:'Карта новичка: управление проектами',description:'Материалы адаптации для отдела управления проектами.',category:'Моя роль',format:'Таблица',role:'Управление проектами',url:'https://docs.google.com/spreadsheets/d/1m05WHspjPYmigFJKewAlamZ-Qu4bTE5vIyYfqAFyvck/edit',icon:'route',color:'lilac'},
     {id:'map-analytics',title:'Карта новичка: аналитика',description:'Материалы адаптации для отдела аналитики.',category:'Моя роль',format:'Таблица',role:'Аналитика',url:'https://docs.google.com/spreadsheets/d/1D_wIFlDbJiIM9VSp-GMW-QgCIHAz1qdCz6pfnmAxfpQ/edit?usp=sharing',icon:'route',color:'blue'},
@@ -138,6 +140,40 @@ window.ONBOARDING_DATA = {
     {q:'Это официальный план адаптации?',a:'Это прототип интерфейса. Последовательность шагов и оценки времени предложены для демонстрации. Ссылки взяты из базы знаний, но содержание всех связанных файлов и действующий план адаптации ещё требуют проверки.'}
   ]
 };
+</script>
+<script>'use strict';
+// Shared search for the library and assistant. Searches only the local link catalog.
+((root)=>{
+  const normalize=value=>String(value??'').normalize('NFKC').toLocaleLowerCase('ru').replace(/ё/g,'е').replace(/[^a-zа-я0-9\s]/g,' ').replace(/\s+/g,' ').trim();
+  const stop=new Set('где как что мне для это про есть какой какая какие нужно можно хочу найти найди найдите найтись поиск ищу искать покажи покажите посмотреть расскажи пожалуйста уже еще прошу себя тоже нужен нужна нужны оно чтобы делать почему все всех и в на у с со о об the find please show'.split(' '));
+  const words=value=>normalize(value).split(' ').filter(w=>w.length>1&&!stop.has(w));
+  const stem=word=>word.length<5?word:word.replace(/(?:иями|ями|ами|ого|ему|ому|ими|ыми|иям|ием|ах|ях|ов|ев|ей|ой|ий|ая|яя|ое|ее|ые|ие|ый|ую|юю|ия|ию|ии|ам|ям|ом|ем|а|я|ы|и|у|ю|е|о)$/,'');
+  function distance(a,b){const row=Array.from({length:b.length+1},(_,i)=>i);for(let i=1;i<=a.length;i++){let previous=row[0];row[0]=i;for(let j=1;j<=b.length;j++){const above=row[j];row[j]=Math.min(row[j]+1,row[j-1]+1,previous+(a[i-1]===b[j-1]?0:1));previous=above;}}return row[b.length];}
+  function matches(query,candidate){
+    if(query===candidate)return true;
+    if(query.length>=3&&candidate.startsWith(query))return true;
+    const a=stem(query),b=stem(candidate);
+    if(a.length>=3&&a===b)return true;
+    return query.length>=5&&Math.abs(query.length-candidate.length)<=1&&distance(query,candidate)<=1;
+  }
+  function search(query,options={}){
+    const materials=options.materials||root.ONBOARDING_DATA?.materials||[];
+    const groups=normalize(query).split(/\s+(?:или|or)\s+/).map(words).filter(g=>g.length);
+    if(!groups.length)return options.empty===false?[]:materials.map(material=>({material,score:0})).slice(0,options.limit??Infinity);
+    return materials.map((material,index)=>{
+      const title=words(material.title),aliases=words((material.keywords||[]).join(' ')),body=words([material.description,material.category,material.role,material.format].join(' '));
+      let best=0;
+      for(const group of groups){let score=0,matched=0;
+        for(const term of group){const points=title.some(word=>matches(term,word))?5:aliases.some(word=>matches(term,word))?4:body.some(word=>matches(term,word))?2:0;score+=points;if(points)matched++;}
+        if(options.matchAll!==false&&matched!==group.length)continue;
+        if(matched>0&&options.role&&material.role===options.role)score+=2;
+        best=Math.max(best,score);
+      }
+      return {material,score:best,index};
+    }).filter(item=>item.score>0).sort((a,b)=>b.score-a.score||a.index-b.index).slice(0,options.limit??Infinity).map(({material,score})=>({material,score}));
+  }
+  root.OnboardingSearch=Object.freeze({search,normalize});
+})(typeof window!=='undefined'?window:globalThis);
 </script>
 <script>'use strict';
 (() => {
@@ -216,11 +252,10 @@ window.ONBOARDING_DATA = {
   function fullProgress(){return `<section class="full-progress">${ring()}<div><h2>${progress()===100?'Твой первый маршрут пройден':'Каждый шаг — ближе к команде'}</h2><p>${state.done.length} из ${D.tasks.length} шагов выполнено. ${progress()===100?'Можно вернуться к любому материалу.':'Продолжай в удобном для тебя темпе.'}</p></div><span class="demo-tag">Пример маршрута</span></section>`;}
   function taskRow(t){const done=state.done.includes(t.id);return `<div class="task-row ${done?'done':''}" data-task-row="${t.id}"><button class="check-button ${done?'done':''}" data-toggle-task="${t.id}" aria-label="${done?'Снять отметку: ':'Отметить выполненным: '}${E(t.title)}" aria-pressed="${done}">${done?I('check'):''}</button><button class="task-main" data-task="${t.id}"><h3>${E(t.title)}</h3><p>${E(t.type)}<span>·</span>${I('clock')}${E(t.time)}</p></button><span class="task-status">${done?'Выполнено':'Открыть шаг'}</span>${I('chevron')}</div>`;}
   function route(){return `${heading('Мой маршрут','Небольшие шаги, которые помогут почувствовать себя на своём месте.')} ${fullProgress()}<p class="notice">${I('info')}Предложенный маршрут для прототипа. Этапы и время можно адаптировать вместе с наставником.</p>${D.stages.map(s=>{const ts=D.tasks.filter(t=>t.stage===s.id);return `<section class="route-stage" id="stage-${s.id}"><div class="route-stage-heading"><span class="stage-icon ${s.color}">${I(s.icon)}</span><div><h2>${s.title}</h2><p>${s.subtitle}</p></div><span>${ts.filter(t=>state.done.includes(t.id)).length} / ${ts.length}</span></div><div class="task-list">${ts.map(taskRow).join('')}</div></section>`;}).join('')}`;}
-  function filteredMaterials(){return D.materials.filter(m=>{
+  function filteredMaterials(){const matches=new Set(window.OnboardingSearch.search(query).map(item=>item.material.id));return D.materials.filter(m=>{
     const roleMatch=state.role==='Все отделы'||m.role==='Все отделы'||m.role===state.role;
     const categoryMatch=libraryFilter==='Все материалы'||(libraryFilter==='Сохранённое'?state.saved.includes(m.id):m.category===libraryFilter);
-    const needle=query.trim().toLocaleLowerCase('ru');
-    return roleMatch && categoryMatch && (!needle||`${m.title} ${m.description} ${m.category} ${m.role} ${m.format}`.toLocaleLowerCase('ru').includes(needle));
+    return roleMatch && categoryMatch && matches.has(m.id);
   });}
   function materialCard(m){const saved=state.saved.includes(m.id);return `<article class="material-card"><div class="material-card-top"><div class="material-symbol ${m.color}">${I(m.icon)}</div><span class="material-category">${E(m.category)}</span></div><button class="icon-button bookmark ${saved?'saved':''}" data-save-material="${m.id}" aria-label="${saved?'Удалить из сохранённого: ':'Сохранить: '}${E(m.title)}" aria-pressed="${saved}">${I('bookmark')}</button>${m.role!=='Все отделы'?`<span class="role-label">${E(m.role)}</span>`:''}<h2>${E(m.title)}</h2><p>${E(m.description)}</p><div class="material-bottom"><span class="material-format">${m.url.startsWith('https://info.atwinta.ru')?I('lock'):''}${E(m.format)}</span><a href="${E(m.url)}" target="_blank" rel="noopener noreferrer" aria-label="Открыть: ${E(m.title)} (новая вкладка)">Открыть${I('external')}</a></div></article>`;}
   function libraryResults(){const materials=filteredMaterials();$('#library-counter').textContent=`${materials.length} ${plural(materials.length,'материал','материала','материалов')} · ${state.role==='Все отделы'?'все отделы':state.role}`;$('#library-results').innerHTML=materials.length?materials.map(materialCard).join(''):`<div class="empty-state">${I('search')}<h2>${libraryFilter==='Сохранённое'?'Здесь будут твои материалы':'Ничего не нашлось'}</h2><p>${libraryFilter==='Сохранённое'?'Нажми на закладку в карточке материала, чтобы быстро вернуться к нему позже.':'Попробуй другое слово, сбрось фильтр или выбери все отделы.'}</p><button class="secondary-button" data-reset-filters>Показать все материалы</button></div>`;}
@@ -302,14 +337,7 @@ window.ONBOARDING_DATA = {
     ['Маркетинг',/маркет/],['QA',/\bqa\b|тестиров|тестирован/],['Аккаунтинг',/аккаунт/],
     ['Управление проектами',/управлени[ея] проект|менеджер[а-я]* проект|проектн[а-я]* менеджер|\bpm\b/]
   ];
-  const stop=new Set(['где','как','что','мне','для','это','про','есть','какой','какая','какие','нужно','можно','хочу','найти','покажи','посмотреть','расскажи','пожалуйста','уже','еще','прошу','себя','тоже','нужен','нужна','оно','чтобы','делать','почему']);
-  function editDistance(a,b){const row=Array.from({length:b.length+1},(_,i)=>i);for(let i=1;i<=a.length;i++){let previous=row[0];row[0]=i;for(let j=1;j<=b.length;j++){const above=row[j];row[j]=Math.min(row[j]+1,row[j-1]+1,previous+(a[i-1]===b[j-1]?0:1));previous=above;}}return row[b.length];}
-  function rank(q,role){const words=norm(q).split(' ').filter(w=>w.length>2&&!stop.has(w));if(!words.length)return [];
-    return D.materials.map(m=>{const title=norm(m.title),body=norm(m.description+' '+m.category+' '+m.role+' '+m.format);let score=0;
-      for(const w of words){const stem=w.length>6?w.slice(0,-2):w;if(title.includes(stem))score+=5;else if(body.includes(stem))score+=2;else if(w.length>=5&&title.split(' ').some(t=>Math.abs(t.length-w.length)<=1&&editDistance(t,w)<=1))score+=3;}
-      if(score>0&&role&&m.role===role)score+=2;return {id:m.id,score};
-    }).filter(m=>m.score>=3).sort((a,b)=>b.score-a.score).slice(0,3).map(m=>m.id);
-  }
+  const rank=(q,role)=>root.OnboardingSearch.search(q,{role,matchAll:false,empty:false,limit:3}).map(item=>item.material.id);
   function respond(question,context={},memory={}){
     const q=norm(question), explicitRole=roles.find(([,pattern])=>pattern.test(q))?.[0];
     const role=explicitRole||(context.role&&context.role!=='Все отделы'?context.role:memory.role)||null;
@@ -319,8 +347,16 @@ window.ONBOARDING_DATA = {
     const greetings=/^(привет|здравствуй[а-я]*|добрый (день|вечер)|хай|hello|спасибо|благодарю)( тебе)?$/.test(q);
     if(greetings)return result(/спасибо|благодарю/.test(q)?'Рад помочь! Если появится ещё вопрос, подберём подходящий раздел.':'Привет! Помогу с первыми шагами и подскажу, в каких материалах искать ответ. О чём хочешь узнать?',['hr'],[],['С чего начать?','Где моя карта новичка?','К кому обратиться?'],'greeting');
     if(/нейросет|искусственн|ты бот|кто ты|как ты работаеш|модель|chatgpt/.test(q))return result('В этой версии я локальный помощник по каталогу базы знаний: подбираю материалы и объясняю, где искать ответ. Я не читаю содержимое закрытых документов и не отправляю вопросы внешней нейросети.',['company'],[],['Что ты можешь подсказать?'],'about');
-    if(/что ты умееш|что ты можеш|помоги$/.test(q))return result('Могу подсказать первые шаги, найти карту новичка по отделу, направить к инструкции по Jira, материалам удалённой адаптации или HR. Ещё могу показать следующий шаг из твоего маршрута.',['hr'],[],['С чего начать?','Что мне делать дальше?','Как работать в Jira?'],'about');
+    if(/что ты умееш|что ты можеш|помоги$/.test(q))return result('Могу найти список сотрудников, фотографии Атвинты, карту новичка по отделу, инструкцию по Jira и материалы адаптации. Ещё могу показать следующий шаг из твоего маршрута.',['hr'],[],['Найти список сотрудников','Где фотографии Атвинты?','Что мне делать дальше?'],'about');
     if(/не (открыва|работа|могу (откры|войти|зайти))|нет доступ|нужен доступ|получить доступ|запросить доступ|ошибк[аи]|запрет доступ|авторизац/.test(q))return result('Если ссылка не открывается, проверь, что вошёл в рабочую учётную запись. Доступ к Confluence и документам Google предоставляется отдельно. Если доступа всё равно нет, отправь точную ссылку наставнику или HR и уточни, кто владелец материала. Через этот чат выдать доступ нельзя.',['hr'],[action('help','Открыть помощь')],['К кому обратиться?','Открыть базу знаний'],'access');
+    const photos=/фото|фотк|снимк|альбом|галере/.test(q);
+    const staff=/(сотрудник|коллег|персонал)/.test(q);
+    const directory=staff&&(/спис|справочник|каталог|перечень|найти|найди|покажи|ищу|где|кто работает/.test(q)||/^(сотрудник[а-я]*|коллег[а-я]*|персонал)$/.test(q))&&!/адаптац|удален|нович|карт[а-я]*|испытат|наставник|срок|больнич|отпуск|трудоустр/.test(q);
+    if(photos||directory){
+      const ids=photos&&directory&&/спис|справочник|каталог|перечень/.test(q)?['employees','photos']:photos?['photos']:['employees'];
+      const text=ids.length===2?'Вот обе ссылки из HR-раздела. Список сотрудников открывается в Чавоше после рабочего входа, фотографии — на Яндекс Диске.':photos?'Фотографии Атвинты — на Яндекс Диске, ссылка взята из HR-раздела. Доступ определяется настройками Диска.':'Список сотрудников — по ссылке из HR-раздела. Для просмотра нужен рабочий вход в Чавошу.';
+      return result(text,ids,[],photos?['Найти список сотрудников','У меня нет доступа']:['Где фотографии Атвинты?','У меня нет доступа'],'people');
+    }
     if(/следующ|что (мне )?делать дальше|мой прогресс|сколько.*(прош|выполн)|какой.*шаг/.test(q)){
       const done=Array.isArray(context.done)?context.done:[], next=D.tasks.find(t=>!done.includes(t.id));
       if(!next)return result('В твоём демонстрационном маршруте все шаги отмечены выполненными. Можно вернуться к материалам или обсудить с наставником дальнейшие задачи.', ['hr'],[action('route','Посмотреть маршрут')],['К кому обратиться?'],'progress');
@@ -380,7 +416,7 @@ window.ONBOARDING_DATA = {
   function sourceCard(id){const m=D.materials.find(m=>m.id===id);if(!m)return '';return `<a class="assistant-source" href="${E(m.url)}" target="_blank" rel="noopener noreferrer" aria-label="Источник: ${E(m.title)} (новая вкладка)">${svg(icons.book)}<span class="assistant-source-copy"><strong>${E(m.title)}</strong><small>${E(m.format)} · открыть материал</small></span>${svg(icons.external,'assistant-external')}</a>`;}
   function messageHtml(m){return `<article class="assistant-message ${m.kind}" aria-label="${m.kind==='user'?'Твой вопрос':'Ответ помощника'}">${m.kind==='assistant'?`<span class="assistant-message-avatar">${svg(icons.spark)}</span>`:''}<div class="assistant-bubble"><p class="assistant-speaker">${m.kind==='user'?'ТЫ':'ПОМОЩНИК'}</p><p class="assistant-message-text">${E(m.text)}</p>${m.sources?.length?`<p class="assistant-sources-title">Где посмотреть</p><div class="assistant-sources">${m.sources.map(sourceCard).join('')}</div>`:''}${m.actions?.length?`<div class="assistant-actions">${m.actions.map(a=>`<button type="button" class="assistant-action" data-chat-nav="${E(a.page)}">${E(a.label)}</button>`).join('')}</div>`:''}</div></article>`;}
   function suggestionsHtml(suggestions){return `<div class="assistant-suggestions" aria-label="Примеры вопросов">${suggestions.map(q=>`<button class="assistant-suggestion" type="button" data-chat-question="${E(q)}">${E(q)}</button>`).join('')}</div>`;}
-  function intro(){return `<div class="assistant-intro"><div class="assistant-intro-icon">${svg(icons.spark)}</div><h3 class="assistant-intro-title">С чего начнём?</h3><p class="assistant-intro-text">Помогу найти карту новичка, разобраться с первыми шагами и подскажу, в каком разделе искать ответ.</p></div>${suggestionsHtml(['С чего начать?','Где моя карта новичка?','Как работать в Jira?','К кому обратиться?'])}`;}
+  function intro(){return `<div class="assistant-intro"><div class="assistant-intro-icon">${svg(icons.spark)}</div><h3 class="assistant-intro-title">С чего начнём?</h3><p class="assistant-intro-text">Помогу найти карту новичка, список сотрудников, фотографии и материалы для первых шагов.</p></div>${suggestionsHtml(['С чего начать?','Где моя карта новичка?','Найти список сотрудников','Где фотографии Атвинты?','Как работать в Jira?','К кому обратиться?'])}`;}
   function scrollToLatest(){const latest=list.querySelector('.assistant-message.user:last-of-type')||[...list.querySelectorAll('.assistant-message.user')].at(-1);if(!latest){list.scrollTop=0;return;}const top=latest.getBoundingClientRect().top-list.getBoundingClientRect().top+list.scrollTop;list.scrollTop=Math.max(0,top-8);}
   function renderMessages(){list.innerHTML=messages.length?messages.map(messageHtml).join('')+suggestionsHtml([...messages].reverse().find(m=>m.kind==='assistant')?.suggestions||[]):intro();scrollToLatest();}
   function setOpen(value,{focus=true}={}){open=!!value;panel.hidden=!open;launcher.setAttribute('aria-expanded',String(open));launcher.setAttribute('aria-label',open?'Свернуть чат-помощник':'Открыть чат-помощник');launcher.querySelector('span').textContent=open?'Свернуть помощника':'Спросить помощника';if(open){updateContext();scrollToLatest();if(focus)input.focus({preventScroll:true});}else if(focus)launcher.focus({preventScroll:true});}
